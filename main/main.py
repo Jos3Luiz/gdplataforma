@@ -3,65 +3,104 @@ import math
 import os
 
 
-G_WIDTH=800
+G_WIDTH=1200
 G_HEIGHT=600
 GRAVITY=pygame.Vector2(0,2)
+GAME_CLOCK=30
+BLOCK_SIZE=20
+def readMap(mapPath):
+        with open(mapPath,"r") as f:
+                lines=f.read().split("\n")
 
-
-
+        rect_matrix=[]
+        for  i in range(len(lines)):
+                
+                width=1
+                started=False
+                block_type=0
+                print(len(lines[i]))
+                for j in range(len(lines[i])):
+                        print(lines[i][j],end="")
+                        if lines[i][j]=="A":
+                                if started:
+                                        width+=1
+                                else:
+                                        begin=j*BLOCK_SIZE
+                                        started=True
+                                        block_type="A"
+                        if lines[i][j]=="B":
+                                if started:
+                                        width+=1
+                                else:
+                                        begin=j*BLOCK_SIZE
+                                        started=True
+                                        block_type="B"
+                        if lines[i][j]==" ":
+                                if started:
+                                        if block_type=="A":
+                                                rect_matrix.append(Platform(pygame.Vector2(begin,BLOCK_SIZE*i),width=width*BLOCK_SIZE,height=BLOCK_SIZE))
+                                        elif block_type=="B":
+                                                rect_matrix.append(End(pygame.Vector2(begin,BLOCK_SIZE*i),width=width*BLOCK_SIZE,height=BLOCK_SIZE))
+                                        width=1
+                                started=False
+                        
+        for i in rect_matrix:
+                print(i.rect)
+        return rect_matrix
+                            
 def OpenSprites(path,width,height):
         files = os.listdir(path)
         if len(files)>100:
-                print("this paste have more than 100 files. Check for errors")
+                print("this paste have more than 100 files on folder %s. Check for errors"%path)
                 exit()
-        ret= [pygame.image.load(path+"/"+x) for x in files]
-        #print(ret[0])
-        for i in range(len(ret)):
-                ret[i]=pygame.transform.scale(ret[i],(width,height))
-        return ret
+        for i in range (len(files)):
+                img=pygame.image.load(path+"/"+files[i])
+                scaled=pygame.transform.scale(img,(width,height))
+                files[i]=scaled
+                
+        return files
 
 
 class Entity(pygame.sprite.Sprite):
-    def __init__(self, color, pos,width=32,height=32, *groups):
-        super().__init__(*groups)
-        self.image =  pygame.Surface((width,height))
-        self.image.fill(color)
-        self.rect = self.image.get_rect(topleft=pos)
-        self.pos=pos
-    def Update(self,win,plataforms):
-        
-        win.blit(self.image,self.pos)
-        #print("plataform pos=",self.pos)
-class Player(Entity):
-        def __init__(self,transform=pygame.Vector2((0,0)),
-                path_run="player/sans/right",path_jump="player/jump",
-                width=32,height=32,max_jump=100,max_run=100,*groups):
+        def __init__(self, color, pos,width=32,height=32, *groups):
+                super().__init__(*groups)
+                self.image =  pygame.Surface((width,height))
+                self.image.fill(color)
+                self.rect = self.image.get_rect(topleft=pos)
+                self.pos=pos
+        def Update(self,win,plataforms):
+                win.blit(self.image,self.pos)
 
-                super().__init__(pygame.Color("#0000FF"), transform)
-                self.run=OpenSprites(path_run,width,height)
-                #self.jump=OpenSprites(path_jump)
-                self.transform=transform
-                self.width=width
-                self.height=height
-                self.is_jumping=False
+
+class Player(pygame.sprite.Sprite):
+        def __init__(self,rect=pygame.Rect(0,0,32,32),
+                path_run="player/sans/right",path_jump="player/jump",moveSpeed=5,max_jump=100,max_run=100,*groups):
+
+                self.run=OpenSprites(path_run,width=rect.width,height=rect.height)
+                self.rect=rect
+                self.is_jumping=True
                 self.is_running=False
+                self.is_left=False
                 self.sprite=None
                 self.jump_count=0
                 self.run_count=0
-                #self.len_jump=len(self.jump)
                 self.len_run=len(self.run)
                 self.max_jump=max_jump
                 self.max_run=max_run
                 self.speed=pygame.Vector2((0,0))
-                self.jump_power=10
-                self.moveSpeed=4
+                self.jump_power=30
+                self.moveSpeed=moveSpeed
 
 
 
         def Update(self,win,plataforms):
+
+                
+                
                 self.GetInput()
+                self.is_jumping=True
                 if self.is_jumping==True:
-                        #self.sprite=(self.jump[self.jump_count//self.len_jump],self.transform)
+                         
                         self.speed+=GRAVITY
                         self.jump_count+=1
                         if self.jump_count > self.max_jump:
@@ -70,42 +109,39 @@ class Player(Entity):
                                 self.run_count=0
                                 
 
-                elif self.is_running:
+                if self.is_running:
                         self.run_count+=1
-                        #
-                #print("pos=1",self.transform)        
+
                 self.sprite=self.run[self.run_count%self.len_run]
-
-
-                self.collideX(plataforms)
+                if self.is_left:
+                        self.sprite = pygame.transform.flip(self.sprite, 1,0)
                 
-                self.is_jumping=True
-                self.collideY(plataforms)
-                self.transform+=self.speed
-                self.collideY(plataforms)
-                self.rect.top=self.transform.y
-                self.rect.left=self.transform.x
-                #print("win=",win,"sprite=",self.sprite) 
-                #print(self.speed,self.is_jumping)
-                #self.transform=pygame.Vector2(10,-20)
-                win.blit(self.sprite,self.transform)
-        def collideX(self,obstacles):
+
+                self.rect.left+=self.speed.x
+                self.collide(self.speed.x,0,plataforms)
+
+                if self.is_jumping:
+                        self.rect.bottom+=self.speed.y
+                self.collide(0,self.speed.y,plataforms)
+                
+                win.blit(self.sprite,self.rect.topleft)
+
+        def collide(self,xvel,yvel,obstacles):
                 for o in obstacles:
                         if pygame.sprite.collide_rect(self,o):
-                                if self.speed.x >0:
-                                        self.rect.right = o.rect.left
-                                elif self.speed.x < 0 :
+                                collidad=True
+                                if xvel >0:
+                                        self.rect.right= o.rect.left
+                                elif xvel < 0 :
                                         self.rect.left = o.rect.right
-        def collideY(self,obstacles):
-                for o in obstacles:
-                        if pygame.sprite.collide_rect(self,o):
-                                if self.speed.y > 0 :
-                                        print("hity grnd",self.rect,o.rect)
+                                elif yvel > 0 :
                                         self.rect.bottom = o.rect.top
                                         self.is_jumping=False
                                         self.speed.y=0
-                                if self.speed.y <0:
+                                elif yvel <0:
                                         self.rect.top = o.rect.bottom
+
+
 
 
         def GetInput(self):
@@ -117,36 +153,32 @@ class Player(Entity):
                                 self.is_jumping=True
 
                 elif keyboard[pygame.K_LEFT]:
-                        print("pressed ")
                         self.speed.x = -self.moveSpeed
                         self.is_running=True
+                        self.is_left=True
+                        
+                        
                 elif keyboard[pygame.K_RIGHT]:
                         self.speed.x = self.moveSpeed
                         self.is_running=True
-                #if keyboard[K_RIGHT]:
+                        self.is_left=False
                 else:
                         self.speed.x=0
                         self.is_running=False
 
 class Platform(Entity):
-    def __init__(self, pos,width,height, *groups):
-        super().__init__(pygame.Color("#00DDFF"), pos,width,height, *groups)
-        #self.sprite=
-    #def
+        def __init__(self, pos,width,height, *groups):
+                super().__init__(pygame.Color("#FF00FF"), pos,width,height, *groups)
 
-
-
-
-
-
-
-
-
+class End(Entity):
+        def __init__(self, pos,width,height, *groups):
+                super().__init__(pygame.Color("#0022FF"), pos,width,height, *groups)
+                
 class MainGame:
         def __init__(self,bg_path="bg.bmp",title="jogo1",width=G_WIDTH,height=G_HEIGHT):
                 pygame.init()
 
-                self.clock_tick_rate=5
+                self.clock_tick_rate= GAME_CLOCK
                 self.size = (width, height)
 
                 self.win = pygame.display.set_mode((width,height))
@@ -155,8 +187,8 @@ class MainGame:
 
 
                 self.bg=pygame.image.load(bg_path).convert()
-                p1=Platform(pygame.Vector2(20,400),width=200,height=30)
-                self.plataforms=[p1]
+   
+                self.plataforms=readMap("maps/map1.txt")
                 
                 
                 self.player=Player()
@@ -171,11 +203,15 @@ class MainGame:
                                         return
                         self.player.Update(self.win,self.plataforms)
                         for i in self.plataforms:
-                            i.Update(self.win,self.plataforms)
+                                i.Update(self.win,self.plataforms)
 
                         
                         pygame.display.flip()
                         self.clock.tick(self.clock_tick_rate)
+    
+                
+                
+                
                         
 if __name__ == "__main__":
            j=MainGame()
