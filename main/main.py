@@ -7,7 +7,7 @@ G_WIDTH=1200
 G_HEIGHT=600
 GRAVITY=pygame.Vector2(0,2)
 GAME_CLOCK=30
-BLOCK_SIZE=20
+BLOCK_SIZE=40
 def readMap(mapPath):
         with open(mapPath,"r") as f:
                 lines=f.read().split("\n")
@@ -38,9 +38,9 @@ def readMap(mapPath):
                         if lines[i][j]==" ":
                                 if started:
                                         if block_type=="A":
-                                                rect_matrix.append(Platform(pygame.Vector2(begin,BLOCK_SIZE*i),width=width*BLOCK_SIZE,height=BLOCK_SIZE))
+                                                rect_matrix.append(Platform(pygame.Rect(begin,BLOCK_SIZE*i,width*BLOCK_SIZE,BLOCK_SIZE)))
                                         elif block_type=="B":
-                                                rect_matrix.append(End(pygame.Vector2(begin,BLOCK_SIZE*i),width=width*BLOCK_SIZE,height=BLOCK_SIZE))
+                                                rect_matrix.append(Platform(pygame.Rect(begin,BLOCK_SIZE*i,width*BLOCK_SIZE,BLOCK_SIZE)))
                                         width=1
                                 started=False
                         
@@ -48,6 +48,24 @@ def readMap(mapPath):
                 print(i.rect)
         return rect_matrix
                             
+
+def readMap2(mapPath):
+        with open(mapPath,"r") as f:
+                lines=f.read().split("\n")
+
+        rect_matrix=[]
+        for  i in range(len(lines)):
+                for j in range(len(lines[i])):
+                        print(lines[i][j],end="")
+                        if lines[i][j]=="G":
+                                rect_matrix.append(Platform(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),"textura/grass.png"))
+                        if lines[i][j]=="M":
+                                rect_matrix.append(End(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),"textura/marble.png"))
+                        
+        for i in rect_matrix:
+                print(i.rect)
+        return rect_matrix
+
 def OpenSprites(path,width,height):
         files = os.listdir(path)
         if len(files)>100:
@@ -62,26 +80,34 @@ def OpenSprites(path,width,height):
 
 
 class Entity(pygame.sprite.Sprite):
-        def __init__(self, color, pos,width=32,height=32, *groups):
+        def __init__(self, color,rect,path="", *groups):
                 super().__init__(*groups)
-                self.image =  pygame.Surface((width,height))
-                self.image.fill(color)
-                self.rect = self.image.get_rect(topleft=pos)
-                self.pos=pos
-        def Update(self,win,plataforms):
-                win.blit(self.image,self.pos)
+                self.rect = rect 
+                
+                if (path==""):
+                    self.image =  pygame.Surface((rect.width,rect.height))
+                    self.image.fill(color)
+                else:
+                    
+                    
+                    img=pygame.image.load(path)
+                    self.image=pygame.transform.scale(img,(rect.width,rect.height))
+                   
+                
+                             
+        
 
 
-class Player(pygame.sprite.Sprite):
-        def __init__(self,rect=pygame.Rect(0,0,32,32),
+class Player(Entity):
+        def __init__(self,rect,
                 path_run="player/sans/right",path_jump="player/jump",moveSpeed=5,max_jump=100,max_run=100,*groups):
-
+                Entity.__init__(self,pygame.Color("#FF00FF"),rect)
                 self.run=OpenSprites(path_run,width=rect.width,height=rect.height)
-                self.rect=rect
+                #self.rect=rect
                 self.is_jumping=True
                 self.is_running=False
                 self.is_left=False
-                self.sprite=None
+                
                 self.jump_count=0
                 self.run_count=0
                 self.len_run=len(self.run)
@@ -112,9 +138,9 @@ class Player(pygame.sprite.Sprite):
                 if self.is_running:
                         self.run_count+=1
 
-                self.sprite=self.run[self.run_count%self.len_run]
+                self.image=self.run[self.run_count%self.len_run]
                 if self.is_left:
-                        self.sprite = pygame.transform.flip(self.sprite, 1,0)
+                        self.image = pygame.transform.flip(self.image, 1,0)
                 
 
                 self.rect.left+=self.speed.x
@@ -123,8 +149,12 @@ class Player(pygame.sprite.Sprite):
                 if self.is_jumping:
                         self.rect.bottom+=self.speed.y
                 self.collide(0,self.speed.y,plataforms)
+                #print("drawing")
+                #self.rect=pygame.Rect(110,110,32,32)
+                #win.blit(self.image,self.rect.topleft)
                 
-                win.blit(self.sprite,self.rect.topleft)
+                
+               
 
         def collide(self,xvel,yvel,obstacles):
                 for o in obstacles:
@@ -167,16 +197,17 @@ class Player(pygame.sprite.Sprite):
                         self.is_running=False
 
 class Platform(Entity):
-        def __init__(self, pos,width,height, *groups):
-                super().__init__(pygame.Color("#FF00FF"), pos,width,height, *groups)
-
+        def __init__(self, rect, *groups):
+                super().__init__(pygame.Color("#FF00FF"), rect, *groups)
 class End(Entity):
-        def __init__(self, pos,width,height, *groups):
-                super().__init__(pygame.Color("#0022FF"), pos,width,height, *groups)
+        def __init__(self, rect, *groups):
+                super().__init__(pygame.Color("#0022FF"), rect, *groups)
+
                 
 class MainGame:
-        def __init__(self,bg_path="bg.bmp",title="jogo1",width=G_WIDTH,height=G_HEIGHT):
+        def __init__(self,title="jogo1",width=G_WIDTH,height=G_HEIGHT):
                 pygame.init()
+                beginPlayer=pygame.Rect(600,0,32,32)
 
                 self.clock_tick_rate= GAME_CLOCK
                 self.size = (width, height)
@@ -186,35 +217,65 @@ class MainGame:
                 self.clock=pygame.time.Clock() 
 
 
-                self.bg=pygame.image.load(bg_path).convert()
+                
    
-                self.plataforms=readMap("maps/map1.txt")
+                self.plataforms=readMap2("maps/map2.txt")
                 
                 
-                self.player=Player()
+                self.player=Player(rect=beginPlayer)
                 
+                self.objects=[self.player]
+                self.cam=Camera(self.win,self.objects,self.plataforms,focus=self.player.rect)
                 self.mainLoop()
         def mainLoop(self):
                 is_running=True
                 while is_running == True:
-                        self.win.blit(self.bg,[ 0,0])
+                        
                         for e in pygame.event.get():
                                 if e.type == pygame.QUIT: 
                                         return
-                        self.player.Update(self.win,self.plataforms)
-                        for i in self.plataforms:
-                                i.Update(self.win,self.plataforms)
+
 
                         
+                        
+                        self.player.Update(self.win,self.plataforms)
+                        self.cam.DrawFrame(self.objects,self.plataforms)     
+                                  
                         pygame.display.flip()
                         self.clock.tick(self.clock_tick_rate)
     
                 
                 
-                
-                        
+class Camera:
+    def __init__(self,win,objects,plataforms,focus,bg_path="bg.bmp"):
+        self.win=win
+        self.focus=focus
+        self.bg=pygame.image.load(bg_path).convert()
+        self.limiteR=0
+        self.limiteL=9999
+        self.lastPos=0
+        self.offset=pygame.Vector2(G_WIDTH/2,0)
+    def DrawFrame(self,objects,plataforms):
+        self.win.blit(self.bg,[ 0,0])
+
+
+        allobjects=objects+plataforms
+
+        for i in allobjects:
+            
+            xpos=i.rect.x-self.focus.x+self.offset.x
+         
+            ypos=i.rect.top
+            self.win.blit(i.image,(xpos,ypos))
+        #for i in plataforms:
+        #    self.win.blit(i.image,(i.rect.left-self.focus.left+G_WIDTH/2,i.rect.top))
+
+
+def subTuple(t1,t2):
+    return (t1[0]-t2[0],t1[1]-t2[1])
+
+
 if __name__ == "__main__":
            j=MainGame()
                         
-
 
