@@ -5,12 +5,12 @@
 
 
 
-
-
-
-                      GGGGGGGGGGGGGGGGGGGGGGG
-
-
- MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM 
+                                                             0
+                                                             F
+                         C C C C C                           F
+                      GGGGGGGGGGGGGGGGGGGGGGG                F
+                                                             F
+                                                             F
+ MMMMMMMLLLLLLMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM 
  MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
  MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM

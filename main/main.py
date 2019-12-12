@@ -7,7 +7,7 @@ G_WIDTH=1200
 G_HEIGHT=600
 GRAVITY=pygame.Vector2(0,2)
 GAME_CLOCK=30
-BLOCK_SIZE=40
+BLOCK_SIZE=32
 def readMap(mapPath):
         with open(mapPath,"r") as f:
                 lines=f.read().split("\n")
@@ -49,25 +49,11 @@ def readMap(mapPath):
         return rect_matrix
                             
 
-def readMap2(mapPath):
-        with open(mapPath,"r") as f:
-                lines=f.read().split("\n")
 
-        rect_matrix=[]
-        for  i in range(len(lines)):
-                for j in range(len(lines[i])):
-                        print(lines[i][j],end="")
-                        if lines[i][j]=="G":
-                                rect_matrix.append(Platform(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),"textura/grass.png"))
-                        if lines[i][j]=="M":
-                                rect_matrix.append(End(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),"textura/marble.png"))
-                        
-        for i in rect_matrix:
-                print(i.rect)
-        return rect_matrix
 
 def OpenSprites(path,width,height):
         files = os.listdir(path)
+        files.sort()
         if len(files)>100:
                 print("this paste have more than 100 files on folder %s. Check for errors"%path)
                 exit()
@@ -79,8 +65,9 @@ def OpenSprites(path,width,height):
         return files
 
 
+
 class Entity(pygame.sprite.Sprite):
-        def __init__(self, color,rect,path="", *groups):
+        def __init__(self,color,rect,path="", *groups):
                 super().__init__(*groups)
                 self.rect = rect 
                 
@@ -116,13 +103,15 @@ class Player(Entity):
                 self.speed=pygame.Vector2((0,0))
                 self.jump_power=30
                 self.moveSpeed=moveSpeed
+                self.gold=0
+                self.vida=100
 
 
 
-        def Update(self,win,plataforms):
+        def Update(self,manager):
 
-                
-                
+                plataforms=manager.plataforms
+                objects=manager.objects
                 self.GetInput()
                 self.is_jumping=True
                 if self.is_jumping==True:
@@ -152,8 +141,23 @@ class Player(Entity):
                 #print("drawing")
                 #self.rect=pygame.Rect(110,110,32,32)
                 #win.blit(self.image,self.rect.topleft)
+                self.interact(manager)
                 
-                
+        def interact(self,manager):
+            objects=manager.objects
+            for o in objects:
+                if pygame.sprite.collide_rect(self,o):
+                    if isinstance(o,Coin):
+                            self.gold+=10
+                            objects.remove(o)
+                            print
+                    elif isinstance(o,Lava):
+                        self.TirarVida(o.damage,manager)
+        def TirarVida(self,dano,manager):
+            self.vida-=dano
+            if self.vida<0:
+                manager.restart()
+
                
 
         def collide(self,xvel,yvel,obstacles):
@@ -195,6 +199,36 @@ class Player(Entity):
                 else:
                         self.speed.x=0
                         self.is_running=False
+class dinamicSprite(pygame.sprite.Sprite):
+    def __init__(self,rect,path="",*groups):
+        super().__init__(*groups)
+        self.rect = rect
+
+        self.sprites=OpenSprites(path,32,32)
+        self.sprites_len=len(self.sprites)
+        self.image=self.sprites[0]
+        self.count=0
+    def Update(self,manager):
+        self.image=self.sprites[self.count%self.sprites_len]
+        self.count+=1
+
+class Coin(dinamicSprite):
+    def __init__(self,rect,path="",*groups):
+        super().__init__(rect,path,*groups)
+        self.gold=10
+class Lava(dinamicSprite):
+     def __init__(self,rect,path="",*groups):
+        super().__init__(rect,path,*groups)
+        self.damage=10
+
+
+class FlagTopo(dinamicSprite):
+     def __init__(self,rect,path="",*groups):
+        super().__init__(rect,path,*groups)
+        
+class Flag(Platform):
+     def __init__(self,rect,path="",*groups):
+        super().__init__(rect,path,*groups)
 
 class Platform(Entity):
         def __init__(self, rect, *groups):
@@ -218,13 +252,14 @@ class MainGame:
 
 
                 
-   
-                self.plataforms=readMap2("maps/map2.txt")
+                self.objects=[]
+                self.plataforms=[]
+                self.readMap2("maps/map2.txt")
                 
                 
                 self.player=Player(rect=beginPlayer)
                 
-                self.objects=[self.player]
+                self.objects.append(self.player)
                 self.cam=Camera(self.win,self.objects,self.plataforms,focus=self.player.rect)
                 self.mainLoop()
         def mainLoop(self):
@@ -237,13 +272,36 @@ class MainGame:
 
 
                         
+                        for i in self.objects:
+                            i.Update(self)
                         
-                        self.player.Update(self.win,self.plataforms)
                         self.cam.DrawFrame(self.objects,self.plataforms)     
                                   
                         pygame.display.flip()
                         self.clock.tick(self.clock_tick_rate)
-    
+        def readMap2(self,mapPath):
+            with open(mapPath,"r") as f:
+                    lines=f.read().split("\n")
+
+            rect_matrix=[]
+            for  i in range(len(lines)):
+                    for j in range(len(lines[i])):
+                            print(lines[i][j],end="")
+                            if lines[i][j]=="G":
+                                    self.plataforms.append(Platform(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),"textura/grass.png"))
+                            elif lines[i][j]=="M":
+                                    self.plataforms.append(End(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),"textura/marble.png"))
+                            elif lines[i][j]=="C":
+                                    self.objects.append(Coin(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),"textura/coins/"))
+                            elif lines[i][j]=="L":
+                                    self.objects.append(Lava(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),"textura/lava/"))
+                            
+            for i in rect_matrix:
+                    print(i.rect)
+            
+        def restart(self):
+            print("restarted")
+            self.__init__()
                 
                 
 class Camera:
