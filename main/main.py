@@ -67,28 +67,85 @@ def OpenSprites(path,width,height):
 
 
 class Entity(pygame.sprite.Sprite):
-        def __init__(self,color,rect,path="", *groups):
-                super().__init__(*groups)
-                self.rect = rect 
-                
-                if (path==""):
-                    self.image =  pygame.Surface((rect.width,rect.height))
-                    self.image.fill(color)
-                else:
-                    
-                    
-                    img=pygame.image.load(path)
-                    self.image=pygame.transform.scale(img,(rect.width,rect.height))
-                   
-                
-                             
+        def __init__(self,rect,path="",tags=[],color=pygame.Color("#DD00FF") ,*groups):
+            super().__init__(*groups)
+            self.rect = rect 
+            self.tags=tags
+            self.isAlive=True
+            
         
+            if "dinamic" in self.tags:
+                self.sprites=OpenSprites(path,32,32)
+                self.sprites_len=len(self.sprites)
+                self.image=self.sprites[0]
+                self.count=0
+            elif "color" in self.tags:
+                self.image =  pygame.Surface((rect.width,rect.height))
+                self.image.fill(color)
+            elif path!="" and "static" in tags:
+                img=pygame.image.load(path)
+                width=rect.width
+                heigh=rect.height
+                self.image=pygame.transform.scale(img,(rect.width,rect.height))
+                
+
+        
+
+        def Update(self,manager):
+            if "dinamic" in self.tags:
+                self.image=self.sprites[self.count%self.sprites_len]
+                self.count+=1
+            
+        
+        def Collide(self,other,xvel,yvel):
+            if "collider" in self.tags:
+                    if xvel > 0:
+                        other.rect.right= self.rect.left
+                    elif xvel < 0 :
+                        other.rect.left = self.rect.right
+                    elif yvel > 0 :
+                        other.rect.bottom = self.rect.top
+                        other.is_jumping=False
+                        other.speed.y=0
+                    elif yvel <0:
+                        other.rect.top = self.rect.bottom
+            
+            if "dinamic" in self.tags:
+                self.Interact(other)
+            
+        #def Interact(self,other):
+        #    print("interacted w ",other)
+        #    return                
+        
+
+class Coin(Entity):
+    def __init__(self,rect,path="textura/coins/",*groups):
+        super().__init__(rect,path,tags=["dinamic"],*groups)
+    def Interact(self,other):
+        other.gold+=10
+        self.isAlive=False
+        print("collected")
+
+class Lava(Entity):
+    def __init__(self,rect,path="textura/lava/",*groups):
+        super().__init__(rect,path,tags=["dinamic"],*groups)
+    def Interact(self,other):
+        other.TirarVida(10)
+
+
+class Platform(Entity):
+    def __init__(self,rect,path,*groups):
+        super().__init__(rect,path,tags=["static","collider"],*groups)
+
+class End(Entity):
+    def __init__(self,rect,*groups):
+        super().__init__(rect,tags=["color","collider"],*groups)
 
 
 class Player(Entity):
         def __init__(self,rect,
                 path_run="player/sans/right",path_jump="player/jump",moveSpeed=5,max_jump=100,max_run=100,*groups):
-                Entity.__init__(self,pygame.Color("#FF00FF"),rect)
+                Entity.__init__(self,rect)
                 self.run=OpenSprites(path_run,width=rect.width,height=rect.height)
                 #self.rect=rect
                 self.is_jumping=True
@@ -133,49 +190,34 @@ class Player(Entity):
                 
 
                 self.rect.left+=self.speed.x
-                self.collide(self.speed.x,0,plataforms)
+                self.CheckCollision(self.speed.x,0,plataforms)
 
                 if self.is_jumping:
                         self.rect.bottom+=self.speed.y
-                self.collide(0,self.speed.y,plataforms)
+
+                self.CheckCollision(0,self.speed.y,objects)
                 #print("drawing")
                 #self.rect=pygame.Rect(110,110,32,32)
                 #win.blit(self.image,self.rect.topleft)
-                self.interact(manager)
                 
-        def interact(self,manager):
-            objects=manager.objects
-            for o in objects:
-                if pygame.sprite.collide_rect(self,o):
-                    if isinstance(o,Coin):
-                            self.gold+=10
-                            objects.remove(o)
-                            print
-                    elif isinstance(o,Lava):
-                        self.TirarVida(o.damage,manager)
-        def TirarVida(self,dano,manager):
+                self.CheckInteractions(0,self.speed.y,plataforms)
+        
+        def TirarVida(self,dano):
             self.vida-=dano
             if self.vida<0:
-                manager.restart()
+                self.isAlive=False
 
-               
+        def CheckInteractions(self,xvel,yvel,objects):
+            for o in objects:
+                if pygame.sprite.collide_rect(self,o):
+                    o.Collide(self,xvel,yvel)
+                
 
-        def collide(self,xvel,yvel,obstacles):
+        def CheckCollision(self,xvel,yvel,obstacles):
                 for o in obstacles:
                         if pygame.sprite.collide_rect(self,o):
-                                collidad=True
-                                if xvel >0:
-                                        self.rect.right= o.rect.left
-                                elif xvel < 0 :
-                                        self.rect.left = o.rect.right
-                                elif yvel > 0 :
-                                        self.rect.bottom = o.rect.top
-                                        self.is_jumping=False
-                                        self.speed.y=0
-                                elif yvel <0:
-                                        self.rect.top = o.rect.bottom
-
-
+                                o.Collide(self,xvel,yvel)
+                
 
 
         def GetInput(self):
@@ -199,43 +241,11 @@ class Player(Entity):
                 else:
                         self.speed.x=0
                         self.is_running=False
-class dinamicSprite(pygame.sprite.Sprite):
-    def __init__(self,rect,path="",*groups):
-        super().__init__(*groups)
-        self.rect = rect
-
-        self.sprites=OpenSprites(path,32,32)
-        self.sprites_len=len(self.sprites)
-        self.image=self.sprites[0]
-        self.count=0
-    def Update(self,manager):
-        self.image=self.sprites[self.count%self.sprites_len]
-        self.count+=1
-
-class Coin(dinamicSprite):
-    def __init__(self,rect,path="",*groups):
-        super().__init__(rect,path,*groups)
-        self.gold=10
-class Lava(dinamicSprite):
-     def __init__(self,rect,path="",*groups):
-        super().__init__(rect,path,*groups)
-        self.damage=10
 
 
-class FlagTopo(dinamicSprite):
-     def __init__(self,rect,path="",*groups):
-        super().__init__(rect,path,*groups)
-        
-class Flag(Platform):
-     def __init__(self,rect,path="",*groups):
-        super().__init__(rect,path,*groups)
 
-class Platform(Entity):
-        def __init__(self, rect, *groups):
-                super().__init__(pygame.Color("#FF00FF"), rect, *groups)
-class End(Entity):
-        def __init__(self, rect, *groups):
-                super().__init__(pygame.Color("#0022FF"), rect, *groups)
+
+
 
                 
 class MainGame:
@@ -273,7 +283,12 @@ class MainGame:
 
                         
                         for i in self.objects:
-                            i.Update(self)
+                            if i.isAlive==False:
+                                self.objects.remove(i)
+                                if i==self.player:
+                                    self.restart()
+                            else:
+                                i.Update(self)
                         
                         self.cam.DrawFrame(self.objects,self.plataforms)     
                                   
@@ -290,11 +305,11 @@ class MainGame:
                             if lines[i][j]=="G":
                                     self.plataforms.append(Platform(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),"textura/grass.png"))
                             elif lines[i][j]=="M":
-                                    self.plataforms.append(End(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),"textura/marble.png"))
+                                    self.plataforms.append(Platform(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),"textura/marble.png"))
                             elif lines[i][j]=="C":
-                                    self.objects.append(Coin(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),"textura/coins/"))
+                                    self.objects.append(Coin(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE)))
                             elif lines[i][j]=="L":
-                                    self.objects.append(Lava(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),"textura/lava/"))
+                                    self.objects.append(Lava(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE)))
                             
             for i in rect_matrix:
                     print(i.rect)
