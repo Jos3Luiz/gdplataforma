@@ -109,6 +109,7 @@ class Entity(pygame.sprite.Sprite):
                         other.speed.y=0
                     elif yvel <0:
                         other.rect.top = self.rect.bottom
+                        other.speed.y=0
             
             if "dinamic" in self.tags:
                 self.Interact(other)
@@ -131,6 +132,15 @@ class Lava(Entity):
         super().__init__(rect,path,tags=["dinamic"],*groups)
     def Interact(self,other):
         other.TirarVida(10)
+
+class Flag(Entity):
+    def __init__(self,rect,path="",part="",*groups):
+        if part=="top":
+            super().__init__(rect,"textura/flag/",tags=["dinamic"],*groups)
+        elif part=="bottom":
+            super().__init__(rect,"textura/f1.png",tags=["static"],*groups)
+    def Interact(self,other):
+        print("ganhou")
 
 
 class Platform(Entity):
@@ -202,6 +212,9 @@ class Player(Entity):
                 
                 self.CheckInteractions(0,self.speed.y,plataforms)
         
+                if self.rect.y > 1000:
+                    self.isAlive = False
+
         def TirarVida(self,dano):
             self.vida-=dano
             if self.vida<0:
@@ -227,6 +240,9 @@ class Player(Entity):
                         if not self.is_jumping:
                                 self.speed.y-=self.jump_power
                                 self.is_jumping=True
+                #elif keyboard[pygame.K_DOWN]:
+                #        if self.is_jumping:
+                #                self.speed.y+=2
 
                 elif keyboard[pygame.K_LEFT]:
                         self.speed.x = -self.moveSpeed
@@ -241,6 +257,10 @@ class Player(Entity):
                 else:
                         self.speed.x=0
                         self.is_running=False
+
+           
+                                
+                
 
 
 
@@ -301,7 +321,7 @@ class MainGame:
             rect_matrix=[]
             for  i in range(len(lines)):
                     for j in range(len(lines[i])):
-                            print(lines[i][j],end="")
+                            #print(lines[i][j],end="")
                             if lines[i][j]=="G":
                                     self.plataforms.append(Platform(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),"textura/grass.png"))
                             elif lines[i][j]=="M":
@@ -310,6 +330,10 @@ class MainGame:
                                     self.objects.append(Coin(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE)))
                             elif lines[i][j]=="L":
                                     self.objects.append(Lava(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE)))
+                            elif lines[i][j]=="f":
+                                    self.objects.append(Flag(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),part="bottom"))
+                            elif lines[i][j]=="F":
+                                    self.objects.append(Flag(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),part="top"))
                             
             for i in rect_matrix:
                     print(i.rect)
@@ -317,7 +341,8 @@ class MainGame:
         def restart(self):
             print("restarted")
             self.__init__()
-                
+        def WinGame(self,other):
+            print("ganhou o jogo")
                 
 class Camera:
     def __init__(self,win,objects,plataforms,focus,bg_path="bg.bmp"):
@@ -349,6 +374,6 @@ def subTuple(t1,t2):
 
 
 if __name__ == "__main__":
-           j=MainGame()
+    MANAGER=MainGame()
                         
 
