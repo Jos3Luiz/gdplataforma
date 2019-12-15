@@ -1,54 +1,18 @@
 import pygame
 import math
 import os
+from  pygame.locals import *
 
-
-G_WIDTH=1200
-G_HEIGHT=600
+G_WIDTH=1280
+G_HEIGHT=720
 GRAVITY=pygame.Vector2(0,2)
 GAME_CLOCK=30
 BLOCK_SIZE=32
-def readMap(mapPath):
-        with open(mapPath,"r") as f:
-                lines=f.read().split("\n")
 
-        rect_matrix=[]
-        for  i in range(len(lines)):
-                
-                width=1
-                started=False
-                block_type=0
-                print(len(lines[i]))
-                for j in range(len(lines[i])):
-                        print(lines[i][j],end="")
-                        if lines[i][j]=="A":
-                                if started:
-                                        width+=1
-                                else:
-                                        begin=j*BLOCK_SIZE
-                                        started=True
-                                        block_type="A"
-                        if lines[i][j]=="B":
-                                if started:
-                                        width+=1
-                                else:
-                                        begin=j*BLOCK_SIZE
-                                        started=True
-                                        block_type="B"
-                        if lines[i][j]==" ":
-                                if started:
-                                        if block_type=="A":
-                                                rect_matrix.append(Platform(pygame.Rect(begin,BLOCK_SIZE*i,width*BLOCK_SIZE,BLOCK_SIZE)))
-                                        elif block_type=="B":
-                                                rect_matrix.append(Platform(pygame.Rect(begin,BLOCK_SIZE*i,width*BLOCK_SIZE,BLOCK_SIZE)))
-                                        width=1
-                                started=False
-                        
-        for i in rect_matrix:
-                print(i.rect)
-        return rect_matrix
-                            
 
+
+MANAGER=None
+HUD=None
 
 
 def OpenSprites(path,width,height):
@@ -142,7 +106,6 @@ class Flag(Entity):
     def Interact(self,other):
         print("ganhou")
 
-
 class Platform(Entity):
     def __init__(self,rect,path,*groups):
         super().__init__(rect,path,tags=["static","collider"],*groups)
@@ -150,6 +113,23 @@ class Platform(Entity):
 class End(Entity):
     def __init__(self,rect,*groups):
         super().__init__(rect,tags=["color","collider"],*groups)
+
+class Hud:
+    def __init__(self,size=20):
+        self.size=size
+        self.font1 = pygame.font.Font('fonts/roboto/Roboto-Bold.ttf', self.size)
+        self.buffer=[]
+
+    def Update(self,list):
+        self.buffer=[]
+        for i in range(len(list)):
+            text1 = self.font1.render(list[i], True, (0, 0, 0))
+            self.buffer.append(text1)
+
+    def Draw(self):
+        for i in range(len(self.buffer)):
+            MANAGER.win.blit(self.buffer[i], (0, i*self.size))
+
 
 
 class Player(Entity):
@@ -176,9 +156,12 @@ class Player(Entity):
 
 
         def Update(self,manager):
-
+                global MANAGER , HUD
+                HUD.Update(["Vida: %i"%self.vida , "Gold: %i"%self.gold])
+                #print(MANAGER.win,HUD.str_list)
                 plataforms=manager.plataforms
                 objects=manager.objects
+
                 self.GetInput()
                 self.is_jumping=True
                 if self.is_jumping==True:
@@ -213,6 +196,7 @@ class Player(Entity):
                 self.CheckInteractions(0,self.speed.y,plataforms)
         
                 if self.rect.y > 1000:
+                    MANAGER.restart()
                     self.isAlive = False
 
         def TirarVida(self,dano):
@@ -240,9 +224,9 @@ class Player(Entity):
                         if not self.is_jumping:
                                 self.speed.y-=self.jump_power
                                 self.is_jumping=True
-                #elif keyboard[pygame.K_DOWN]:
-                #        if self.is_jumping:
-                #                self.speed.y+=2
+                elif keyboard[pygame.K_DOWN]:
+                        if self.is_jumping:
+                                self.speed.y+=GRAVITY.y *2
 
                 elif keyboard[pygame.K_LEFT]:
                         self.speed.x = -self.moveSpeed
@@ -270,13 +254,20 @@ class Player(Entity):
                 
 class MainGame:
         def __init__(self,title="jogo1",width=G_WIDTH,height=G_HEIGHT):
+                global MANAGER , HUD
                 pygame.init()
                 beginPlayer=pygame.Rect(600,0,32,32)
+                self.hud=Hud()
+
+
+                HUD=self.hud
+                MANAGER=self
+
+                self.win = pygame.display.set_mode((width,height))
 
                 self.clock_tick_rate= GAME_CLOCK
                 self.size = (width, height)
 
-                self.win = pygame.display.set_mode((width,height))
                 pygame.display.set_caption(title)
                 self.clock=pygame.time.Clock() 
 
@@ -291,6 +282,7 @@ class MainGame:
                 
                 self.objects.append(self.player)
                 self.cam=Camera(self.win,self.objects,self.plataforms,focus=self.player.rect)
+                self.hud=Hud()
                 self.mainLoop()
         def mainLoop(self):
                 is_running=True
@@ -311,7 +303,7 @@ class MainGame:
                                 i.Update(self)
                         
                         self.cam.DrawFrame(self.objects,self.plataforms)     
-                                  
+                        #self.hud.Draw() 
                         pygame.display.flip()
                         self.clock.tick(self.clock_tick_rate)
         def readMap2(self,mapPath):
@@ -365,6 +357,7 @@ class Camera:
          
             ypos=i.rect.top
             self.win.blit(i.image,(xpos,ypos))
+        HUD.Draw() 
         #for i in plataforms:
         #    self.win.blit(i.image,(i.rect.left-self.focus.left+G_WIDTH/2,i.rect.top))
 
@@ -374,6 +367,6 @@ def subTuple(t1,t2):
 
 
 if __name__ == "__main__":
-    MANAGER=MainGame()
+    j=MainGame()
                         
 
