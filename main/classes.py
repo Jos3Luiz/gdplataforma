@@ -1,43 +1,11 @@
+
+
 import pygame
-import math
-import os
-from  pygame.locals import *
-import sys
-import netcode
-
-G_WIDTH=1280
-G_HEIGHT=720
-GRAVITY=pygame.Vector2(0,2)
-GAME_CLOCK=30
-BLOCK_SIZE=32
-D_TIME=1/GAME_CLOCK
-
-
-MANAGER=None
-HUD=None
-
-def subTuple(t1,t2):
-    return (t1[0]-t2[0],t1[1]-t2[1])
-
-
-def OpenSprites(path,width,height):
-    files = os.listdir(path)
-    files.sort()
-    if len(files)>100:
-        print("this paste have more than 100 files on folder %s. Check for errors"%path)
-        exit()
-    for i in range (len(files)):
-        img=pygame.image.load(path+"/"+files[i])
-        scaled=pygame.transform.scale(img,(width,height))
-        files[i]=scaled
-    return files
-
 
 
 class Entity(pygame.sprite.Sprite):
-    def __init__(self,rect,path="",tags=[],color=pygame.Color("#DD00FF") ,isLocal=True,*groups):
+    def __init__(self,rect,path="",tags=[],color=pygame.Color("#DD00FF") ,*groups):
         super().__init__(*groups)
-        self.isLocal=isLocal
         self.rect = rect 
         self.tags=tags
         self.isAlive=True
@@ -86,6 +54,10 @@ class Entity(pygame.sprite.Sprite):
     def GetDistance(self,other):
         return (abs(self.rect.x - other.rect.x)**2 + abs(self.rect.y - other.rect.y)**2)
             
+
+
+
+
 
 class FireBall(Entity):
     def __init__(self,rect,path="textura/FireBall/",vel=0,*groups):
@@ -345,143 +317,3 @@ class Enemy(NPC):
             elif direction[1]<-32:
                 keyboard[pygame.K_UP]=True
         return keyboard
-
-                        
-class Camera:
-    def __init__(self,win,objects,plataforms,focus,bg_path="bg.bmp"):
-        self.win=win
-        self.focus=focus
-        self.bg=pygame.image.load(bg_path).convert()
-        self.limiteR=0
-        self.limiteL=9999
-        self.lastPos=0
-        self.offset=pygame.Vector2(G_WIDTH/2,0)
-    def DrawFrame(self,objects,plataforms):
-        self.win.blit(self.bg,[ 0,0])
-        allobjects=objects+plataforms
-        for i in allobjects:
-            xpos=i.rect.x-self.focus.x+self.offset.x
-
-            ypos=i.rect.top
-
-            self.win.blit(i.image,(xpos,ypos))
-        HUD.Draw() 
-
-                 
-class MainGame:
-    def __init__(self,title="jogo1",width=G_WIDTH,height=G_HEIGHT,isServer=True,addr="127.0.0.1"):
-        global MANAGER , HUD
-        
-        self.netManager=netcode.NetManager(isServer=isServer,address=addr)
-        if not isServer:
-            self.netManager.send(b"ola mundo")
-            print(self.netManager.recv())
-        else:
-            print(self.netManager.recv())
-            self.netManager.send(b"ola mundo")
-        print("fim")
-        sys.exit(1)
-
-
-        pygame.init()
-        
-        self.hud=Hud()
-
-
-        HUD=self.hud
-        MANAGER=self
-
-        self.win = pygame.display.set_mode((width,height))
-
-        
-        self.size = (width, height)
-
-        pygame.display.set_caption(title)
-        self.clock=pygame.time.Clock() 
-
-
-        
-        self.objects=[]
-        self.plataforms=[]
-        self.readMap2("maps/map2.txt")
-        
-        
-        self.player=Player(pygame.Rect(600,0,32,32))
-
-        self.inimigo1=Enemy(pygame.Rect(800,0,32,32))
-        
-        self.objects.append(self.player)
-        self.objects.append(self.inimigo1)
-
-        self.cam=Camera(self.win,self.objects,self.plataforms,focus=self.player.rect)
-
-
-
-        self.hud=Hud()
-        self.mainLoop()
-
-        
-
-    def mainLoop(self):
-        global GAME_CLOCK
-        is_running=True
- 
-        while is_running :
-            for e in pygame.event.get():
-                if e.type == pygame.QUIT: 
-                    return
-            for i in self.objects:
-                if i.isAlive==False:
-                    self.objects.remove(i)
-                else:
-                    i.Update()
-                                        
-            self.cam.DrawFrame(self.objects,self.plataforms)     
-            #self.hud.Draw() 
-            pygame.display.flip()
-            self.clock.tick(GAME_CLOCK)
-            
-    def readMap2(self,mapPath):
-        with open(mapPath,"r") as f:
-            lines=f.read().split("\n")
-
-        rect_matrix=[]
-        for  i in range(len(lines)):
-            for j in range(len(lines[i])):
-                #print(lines[i][j],end="")
-                if lines[i][j]=="G":
-                    self.plataforms.append(Platform(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),"textura/grass.png"))
-                elif lines[i][j]=="M":
-                    self.plataforms.append(Platform(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),"textura/marble.png"))
-                elif lines[i][j]=="C":
-                    self.objects.append(Coin(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE)))
-                elif lines[i][j]=="L":
-                    self.objects.append(Lava(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE)))
-                elif lines[i][j]=="f":
-                    self.objects.append(Flag(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),part="bottom"))
-                elif lines[i][j]=="F":
-                    self.objects.append(Flag(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),part="top"))
-                                                                        
-        #for i in rect_matrix:
-                                 
-        
-    def restart(self):
-        print("restarted")
-        self.__init__()
-    def WinGame(self,other):
-        print("ganhou o jogo")
-
-
-
-
-if __name__ == "__main__":
-    x=input("iserver? ")
-    if x=="s":
-        print("init server")
-        j=MainGame(isServer=True)
-    else:
-        print("init cli")
-        j=MainGame(isServer=False)
-                                                        
-
-
