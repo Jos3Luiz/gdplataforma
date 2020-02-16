@@ -3,7 +3,7 @@ import math
 import os
 from  pygame.locals import *
 import sys
-import netcode
+
 
 G_WIDTH=1280
 G_HEIGHT=720
@@ -41,6 +41,7 @@ class Entity(pygame.sprite.Sprite):
         self.rect = rect 
         self.tags=tags
         self.isAlive=True
+
         
 
         if "dinamic" in self.tags:
@@ -56,7 +57,8 @@ class Entity(pygame.sprite.Sprite):
             width=rect.width
             heigh=rect.height
             self.image=pygame.transform.scale(img,(rect.width,rect.height))
-            
+
+        
 
 
 
@@ -372,15 +374,7 @@ class MainGame:
     def __init__(self,title="jogo1",width=G_WIDTH,height=G_HEIGHT,isServer=True,addr="127.0.0.1"):
         global MANAGER , HUD
         
-        self.netManager=netcode.NetManager(isServer=isServer,address=addr)
-        if not isServer:
-            self.netManager.send(b"ola mundo")
-            print(self.netManager.recv())
-        else:
-            print(self.netManager.recv())
-            self.netManager.send(b"ola mundo")
-        print("fim")
-        sys.exit(1)
+        
 
 
         pygame.init()
@@ -402,6 +396,7 @@ class MainGame:
 
         
         self.objects=[]
+
         self.plataforms=[]
         self.readMap2("maps/map2.txt")
         
@@ -475,13 +470,7 @@ class MainGame:
 
 
 if __name__ == "__main__":
-    x=input("iserver? ")
-    if x=="s":
-        print("init server")
-        j=MainGame(isServer=True)
-    else:
-        print("init cli")
-        j=MainGame(isServer=False)
-                                                        
+    j=MainGame(isServer=True)
+           
 
 

@@ -1,14 +1,57 @@
-
-
 import pygame
+import math
+import os
+from  pygame.locals import *
+import sys
+import netcode
+
+G_WIDTH=1280
+G_HEIGHT=720
+GRAVITY=pygame.Vector2(0,2)
+GAME_CLOCK=30
+BLOCK_SIZE=32
+D_TIME=1/GAME_CLOCK
+IS_MIRROR=0
+IS_LOCAL=1
+IS_ONLINE=2
+
+MANAGER=None
+HUD=None
+
+GID=0
+
+def CreateID():
+    global GID
+    GID+=1
+    return GID 
+
+def subTuple(t1,t2):
+    return (t1[0]-t2[0],t1[1]-t2[1])
+
+
+def OpenSprites(path,width,height):
+    files = os.listdir(path)
+    files.sort()
+    if len(files)>100:
+        print("this paste have more than 100 files on folder %s. Check for errors"%path)
+        exit()
+    for i in range (len(files)):
+        img=pygame.image.load(path+"/"+files[i])
+        scaled=pygame.transform.scale(img,(width,height))
+        files[i]=scaled
+    return files
+
 
 
 class Entity(pygame.sprite.Sprite):
-    def __init__(self,rect,path="",tags=[],color=pygame.Color("#DD00FF") ,*groups):
+    def __init__(self,rect,path="",tags=[],color=pygame.Color("#DD00FF") ,netstate=IS_MIRROR,*groups):
         super().__init__(*groups)
+        self.id=CreateID()
+        self.netstate=netstate
         self.rect = rect 
         self.tags=tags
         self.isAlive=True
+        self.online=[]
         
 
         if "dinamic" in self.tags:
@@ -24,7 +67,15 @@ class Entity(pygame.sprite.Sprite):
             width=rect.width
             heigh=rect.height
             self.image=pygame.transform.scale(img,(rect.width,rect.height))
-            
+
+        
+    def post(self):
+        
+        return [self.rect.x,self.rect.y]
+
+    def get(self,recived):
+        self.rect.x=recived.pop(0)
+        self.rect.y=recived.pop(0)
 
 
 
@@ -32,6 +83,8 @@ class Entity(pygame.sprite.Sprite):
         if "dinamic" in self.tags:
             self.image=self.sprites[self.count%self.sprites_len]
             self.count+=1
+            self.online=[self.count]
+
 
 
     def Collide(self,other,xvel,yvel):
@@ -55,14 +108,10 @@ class Entity(pygame.sprite.Sprite):
         return (abs(self.rect.x - other.rect.x)**2 + abs(self.rect.y - other.rect.y)**2)
             
 
-
-
-
-
 class FireBall(Entity):
-    def __init__(self,rect,path="textura/FireBall/",vel=0,*groups):
+    def __init__(self,rect,path="textura/FireBall/",netstate=IS_MIRROR,vel=0,*groups):
         self.vel=vel
-        super().__init__(rect,path,tags=["dinamic"],*groups)
+        super().__init__(rect,path,tags=["dinamic"],netstate=netstate,*groups)
     def Update(self):
 
         self.rect.x+=self.vel
@@ -74,6 +123,8 @@ class FireBall(Entity):
     def Interact(self,other):
         other.TirarVida(20)
 
+    
+
 class Coin(Entity):
     def __init__(self,rect,path="textura/coins/",*groups):
         super().__init__(rect,path,tags=["dinamic"],*groups)
@@ -82,6 +133,7 @@ class Coin(Entity):
             other.gold+=10
             self.isAlive=False
             print("collected")
+
 
 class Lava(Entity):
     def __init__(self,rect,path="textura/lava/",*groups):
@@ -126,8 +178,8 @@ class Hud:
 
 
 class NPC(Entity):
-    def __init__(self,rect,path_run="inimigo1/andando/",path_jump="inimigo1/pulando",moveSpeed=5,max_jump=100,max_run=100,*groups):
-        Entity.__init__(self,rect)
+    def __init__(self,rect,path_run="inimigo1/andando/",path_jump="inimigo1/pulando",moveSpeed=5,max_jump=100,max_run=100,netstate=IS_MIRROR,*groups):
+        Entity.__init__(self,rect,netstate=netstate)
         self.run=OpenSprites(path_run,width=rect.width,height=rect.height)
         #self.rect=rect
         self.is_jumping=True
@@ -145,7 +197,29 @@ class NPC(Entity):
         
         self.vida=100
 
+    def post(self):
+        return Entity.post(self)+[self.is_jumping,self.is_running,self.is_left,self.jump_count,self.run_count,self.vida]
 
+    def get(self,recived):
+        Entity.get(self,recived)
+        self.is_jumping=recived.pop(0)
+        self.is_running=recived.pop(0)
+        self.is_left=recived.pop(0)
+        self.jump_count=recived.pop(0)
+        self.run_count=recived.pop(0)
+        self.vida=recived.pop(0)
+
+         
+    def OflineUpdate(self):
+        global MANAGER , HUD
+        #print(MANAGER.win,HUD.str_list)
+        plataforms=MANAGER.plataforms
+        objects=MANAGER.objects
+
+        self.image=self.run[self.run_count%self.len_run]
+        if self.is_left:
+            self.image = pygame.transform.flip(self.image, 1,0)
+        
 
     def Update(self):
         global MANAGER , HUD
@@ -153,7 +227,10 @@ class NPC(Entity):
         plataforms=MANAGER.plataforms
         objects=MANAGER.objects
 
+
+        
         self.Move(self.GetInput())
+
         self.is_jumping=True
         if self.is_jumping==True:
              
@@ -232,20 +309,28 @@ class NPC(Entity):
 
  
 class Player(NPC):
-    def __init__(self,rect, path_run="player/sans/right",path_jump="player/jump",moveSpeed=5,max_jump=100,max_run=100,*groups):
+    def __init__(self,rect, path_run="player/sans/right",path_jump="player/jump",moveSpeed=5,max_jump=100,max_run=100,netstate=IS_MIRROR,*groups):
         self.gold=0
         self.timer=0
         self.reloadTime=1
-        NPC.__init__(self,rect, path_run,path_jump,moveSpeed,max_jump,max_run,*groups)
+        NPC.__init__(self,rect, path_run,path_jump,moveSpeed,max_jump,max_run,netstate=netstate,*groups)
 
     def Update(self):
         global MANAGER, HUD
+        
         HUD.Update(["Vida: %i"%self.vida , "Gold: %i"%self.gold])
         NPC.Update(self)
+
         if self.timer<0:
             self.CheckAttack()
         else:
             self.timer-=D_TIME
+
+    def OflineUpdate(self):
+        global MANAGER, HUD
+        
+        NPC.OflineUpdate(self)
+
 
     def CheckAttack(self):
         keyboard=self.GetInput()
@@ -257,7 +342,9 @@ class Player(NPC):
                 vel=10
                 pos=pygame.Rect(self.rect.x+32,self.rect.y,32,32)
 
-            MANAGER.objects.append(FireBall(rect=pos,vel=vel))
+            fire=FireBall(rect=pos,vel=vel,netstate=IS_LOCAL)
+            MANAGER.objects.append(fire)
+            MANAGER.isLocalTemp.append(fire)
             self.timer=self.reloadTime
 
 
@@ -268,8 +355,8 @@ class Player(NPC):
 
 
 class Enemy(NPC):
-    def __init__(self,rect,path_run="inimigo1/andando/",path_jump="inimigo1/pulando",moveSpeed=3,max_jump=100,max_run=100,*groups):
-        NPC.__init__(self,rect,path_run,path_jump,moveSpeed,max_jump,max_run,*groups)
+    def __init__(self,rect,path_run="inimigo1/andando/",path_jump="inimigo1/pulando",moveSpeed=3,max_jump=100,max_run=100,netstate=IS_MIRROR,*groups):
+        NPC.__init__(self,rect,path_run,path_jump,moveSpeed,max_jump,max_run,netstate=netstate,*groups)
         self.aware_distance=100000
         
         self.dano=1
@@ -317,3 +404,155 @@ class Enemy(NPC):
             elif direction[1]<-32:
                 keyboard[pygame.K_UP]=True
         return keyboard
+
+                        
+class Camera:
+    def __init__(self,win,objects,plataforms,focus,bg_path="bg.bmp"):
+        self.win=win
+        self.focus=focus
+        self.bg=pygame.image.load(bg_path).convert()
+        self.limiteR=0
+        self.limiteL=9999
+        self.lastPos=0
+        self.offset=pygame.Vector2(G_WIDTH/2,0)
+    def DrawFrame(self,objects,plataforms):
+        self.win.blit(self.bg,[ 0,0])
+        allobjects=objects+plataforms
+        for i in allobjects:
+            xpos=i.rect.x-self.focus.x+self.offset.x
+
+            ypos=i.rect.top
+
+            self.win.blit(i.image,(xpos,ypos))
+        HUD.Draw() 
+
+                 
+class MainGame:
+    def __init__(self,title="jogo1",width=G_WIDTH,height=G_HEIGHT,isServer=True,addr="127.0.0.1"):
+        global MANAGER , HUD
+        
+        self.isServer=isServer
+
+
+        pygame.init()
+        
+        self.hud=Hud()
+
+
+        HUD=self.hud
+        MANAGER=self
+
+        self.win = pygame.display.set_mode((width,height))
+
+        
+        self.size = (width, height)
+
+        pygame.display.set_caption(title)
+        self.clock=pygame.time.Clock() 
+
+
+        
+        self.objects=[]
+
+        self.plataforms=[]
+        self.readMap2("maps/map2.txt")
+        
+        
+        self.player=Player(pygame.Rect(600,0,32,32),netstate=IS_LOCAL)
+        self.player2=Player(pygame.Rect(600,0,32,32),netstate=IS_ONLINE)
+        if self.isServer:
+            self.inimigo1=Enemy(pygame.Rect(800,0,32,32),netstate=IS_LOCAL)
+        else:
+            self.inimigo1=Enemy(pygame.Rect(800,0,32,32),netstate=IS_ONLINE)
+        
+        self.objects.append(self.player)
+        self.objects.append(self.player2)
+        self.objects.append(self.inimigo1)
+
+        self.cam=Camera(self.win,self.objects,self.plataforms,focus=self.player.rect)
+
+
+
+        self.hud=Hud()
+        
+
+        self.isOnline=[]
+        self.isLocal=[]
+        self.isOnlineTemp=[]
+        self.isLocalTemp=[]
+        for i in self.objects:
+            if i.netstate==IS_LOCAL:
+                self.isLocal.append(i)
+            if i.netstate==IS_ONLINE:
+                self.isOnline.append(i)
+
+        if self.isServer:
+            self.netManager=netcode.NetManagerServer(self.isLocal,self.isOnline)
+        else:
+            self.netManager=netcode.NetManagerClient(self.isLocal,self.isOnline)
+
+
+       
+
+        self.mainLoop()
+
+    def mainLoop(self):
+        global GAME_CLOCK
+        is_running=True
+ 
+        while is_running :
+            for e in pygame.event.get():
+                if e.type == pygame.QUIT:
+                    self.netManager.stop() 
+                    return
+            
+            for i in self.objects:
+                if i.isAlive==False:
+                    self.objects.remove(i)
+                if i.netstate==IS_ONLINE:
+                    i.OflineUpdate()
+                else:
+                    i.Update()
+
+
+                                        
+            self.cam.DrawFrame(self.objects,self.plataforms)     
+            #self.hud.Draw() 
+            pygame.display.flip()
+            self.clock.tick(GAME_CLOCK)
+            
+    def readMap2(self,mapPath):
+        with open(mapPath,"r") as f:
+            lines=f.read().split("\n")
+
+        rect_matrix=[]
+        for  i in range(len(lines)):
+            for j in range(len(lines[i])):
+                #print(lines[i][j],end="")
+                if lines[i][j]=="G":
+                    self.plataforms.append(Platform(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),"textura/grass.png"))
+                elif lines[i][j]=="M":
+                    self.plataforms.append(Platform(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),"textura/marble.png"))
+                elif lines[i][j]=="C":
+                    self.objects.append(Coin(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE)))
+                elif lines[i][j]=="L":
+                    self.objects.append(Lava(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE)))
+                elif lines[i][j]=="f":
+                    self.objects.append(Flag(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),part="bottom"))
+                elif lines[i][j]=="F":
+                    self.objects.append(Flag(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),part="top"))
+                                                                        
+        #for i in rect_matrix:
+                                 
+        
+    def restart(self):
+        print("restarted")
+        self.__init__()
+    def WinGame(self,other):
+        print("ganhou o jogo")
+
+
+
+
+
+

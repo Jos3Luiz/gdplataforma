@@ -4,14 +4,146 @@ import pygame
 import socket
 from socket import error as SocketError
 import json
+import os
 import threading 
+
+
 PORTA=1290
+def generateID():
+    return os.urandom(8).hex()
+
+              
+class MainGameServer:
+
+        
+    def __init__(self):
+        self.dinamics={}
+        self.statics=[]
+        self.readMap2("maps/map2.txt")
+            
+            
+        player1=Player(pygame.Rect(600,0,32,32))
+        player2=Player(pygame.Rect(600,0,32,32))
+        inimigo1=Enemy(pygame.Rect(800,0,32,32))
+            
+        self.dinamics[player1.id]=player1
+        self.dinamics[player2.id]=player2
+        self.dinamics[inimigo1.id]=inimigo1
+
+        self.netManager=netcode.NetManagerServer()
+
+        self.mainLoop()
+
+        
+
+    def mainLoop(self):
+        is_running=True
+ 
+        while is_running :
+            for i in self.dinamics:
+                if i.isAlive==False:
+                    del self.dinamics[i.id]
+                else:
+                    i.Update()
+                                        
+            
+    def readMap2(self,mapPath):
+        with open(mapPath,"r") as f:
+            lines=f.read().split("\n")
+
+        rect_matrix=[]
+        for  i in range(len(lines)):
+            for j in range(len(lines[i])):
+                #print(lines[i][j],end="")
+                if lines[i][j]=="G":
+                    self.statics.append(Platform(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),"textura/grass.png"))
+                elif lines[i][j]=="M":
+                    self.statics.append(Platform(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),"textura/marble.png"))
+                elif lines[i][j]=="C":
+                    self.statics.append(Coin(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE)))
+                elif lines[i][j]=="L":
+                    self.statics.append(Lava(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE)))
+                elif lines[i][j]=="f":
+                    self.statics.append(Flag(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),part="bottom"))
+                elif lines[i][j]=="F":
+                    self.statics.append(Flag(pygame.Rect(BLOCK_SIZE*j,BLOCK_SIZE*i,BLOCK_SIZE,BLOCK_SIZE),part="top"))
+                                                                        
+        #for i in rect_matrix:
+                                 
+        
+    def restart(self):
+        print("restarted")
+        self.__init__()
+    def WinGame(self,other):
+        print("ganhou o jogo")
+
+                 
+class MainGameClient:
+    def __init__(self,title="jogo1",width=720,height=G_HEIGHT,addr="127.0.0.1"):
+        global MANAGER , HUD
+        
+        self.netManager=netcode.NetManagerClient(self,addr)
+        pygame.init()
+        self.hud=Hud()
+        HUD=self.hud
+        MANAGER=self
+        self.win = pygame.display.set_mode((width,height))
+        self.size = (width, height)
+        pygame.display.set_caption(title)
+        self.clock=pygame.time.Clock() 
+        
+        self.dinamics=self.ask_dinamics()
+        self.statics=self.ask_statics()
+        
+        self.player=self.ask_player()
+
+        self.cam=Camera(self.win,self.dinamics,self.statics,focus=self.player.rect)
+
+        self.hud=Hud()
+        self.netManager.run()
+        #atualiza a lista dinamics assincronamente, alem de ser capaz de ativar eventos no manager
+        self.mainLoop()
+
+        
+
+    def mainLoop(self):
+        global GAME_CLOCK
+        is_running=True
+ 
+        while is_running :
+            for e in pygame.event.get():
+                if e.type == pygame.QUIT: 
+                    is_running=False
+                    
+
+            for i in self.dinamics:
+                if i.isAlive==False:
+                    del self.dinamics[i.id]
+                else:
+                    i.Update()
+
+            for i in self.statics:
+                i.UpdateSprite()
+                                        
+            self.cam.DrawFrame(self.dinamics,self.statics)     
+            self.hud.Draw() 
+            pygame.display.flip()
+            self.clock.tick(GAME_CLOCK)                                 
+        
+    def restart(self):
+        print("restarted")
+        self.__init__()
+    def WinGame(self,other):
+        print("ganhou o jogo")
+             
+
 
 
 
 class Entity(pygame.sprite.Sprite):
     def __init__(self,rect,path="",tags=[],color=pygame.Color("#DD00FF") ,isLocal=True,*groups):
         super().__init__(*groups)
+        self.id=generateID()
         self.isLocal=isLocal
         self.rect = rect 
         self.tags=tags
