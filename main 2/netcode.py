@@ -1,4 +1,4 @@
-
+from gameConstants import *
 import sys 
 import trace 
 import threading 
@@ -12,41 +12,8 @@ import os
 
 
 PORTA=1290
-import time 
-import threading 
-class thread_with_trace(threading.Thread): 
-  def __init__(self, *args, **keywords): 
-    threading.Thread.__init__(self, *args, **keywords) 
-    self.killed = False
   
-  def start(self): 
-    self.__run_backup = self.run 
-    self.run = self.__run       
-    threading.Thread.start(self) 
-  
-  def __run(self): 
-    sys.settrace(self.globaltrace) 
-    self.__run_backup() 
-    self.run = self.__run_backup 
-  
-  def globaltrace(self, frame, event, arg): 
-    if event == 'call': 
-      return self.localtrace 
-    else: 
-      return None
-  
-  def localtrace(self, frame, event, arg): 
-    if self.killed: 
-      if event == 'line': 
-        raise SystemExit() 
-    return self.localtrace 
-  
-  def kill(self): 
-    self.killed = True
-  
-
-  
-
+# {id: objlist [aadd, update,remove] } init dos metodos chama uma funcao do manager 
 
 #o servidor ta sempre serto. Nao existem classes locais. Cada  objeto possui um ID setado pelo servidor o servidor pode setar qualquer variavel pra qualquer classe.
 # os clientes enviam de tempo em tempo dados sobre poucas variaveis q eles controlam sobre algumas classes. como é impossivel o estado de jogo estar igual entre o servidor e cliente, no  começo do jogo, o servidor devera poder CRIAR classes 
@@ -56,88 +23,95 @@ class thread_with_trace(threading.Thread):
 #serialize pega os dados e transforma num json, dps envia deserialize recebe um json e dps carrega.
 #havera o metodo update e online update.
 # para multi instancia, sera uma lista de dicionarios o primeiro dicionario para a classe filha, que dara um pop(0)
-class NetManagerServer:
-    def __init__(self,isLocal,isOnline):
+
+def parse(id,list):
+
+
+
+
+
+class NetBase:
+    def __init__(self,manager,address="127.0.0.1"):
         
-        self.isLocal=isLocal
-        self.isOnline=isOnline
-
-        self.socket=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-        self.socket.bind(("",PORTA)) 
-        self.socket.listen(10)
-        self.isAlive=True
-
-        self.tlist=[]
-        self.x=thread_with_trace(target=self.init_thread)
-        self.x.start()
-        self.tlist.append(self.x)
-
-    def init_thread(self):
-
-        while True:
-            try:
-                conn,addr = self.socket.accept()
-                x=thread_with_trace(target=self.client_t,args=(conn,addr))
-                x.start()
-                self.tlist.append(x)
-            except:
-                return
-
-    def stop(self):
-        #for i in self.tlist:
-        #    i.kill()
-        self.x.kill()
-            
-
-
-    def client_t(self,conn,addr):
-        try:
-        while self.isAlive:
-            toSend=[]
-            for i in self.isLocal:
-                toSend.append(i.post())
-
-            conn.sendall(bytes(json.dumps(toSend),"utf-8"))
-
-
-            recived=json.loads(conn.recv(2048))
-            for i in range(len(self.isOnline)):
-                self.isOnline[i].get(recived[i])
-        except:
-                return
-
-
-class NetManagerClient:
-    def __init__(self,isLocal,isOnline,address="127.0.0.1"):
+        self.manager=manager
+        self.objects=self.manager.objects
         self.address=address
-        self.isLocal=isLocal
-        self.isOnline=isOnline
+        self.comands={}
+        self.start()
 
+    def addToOnline(object):
+        pass
+
+
+
+
+class NetManagerServer(NetBase):
+
+
+    def start(self):
         self.socket=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-        self.socket.connect((address,PORTA))
+        self.socket.bind((self.address,PORTA)) 
+        self.socket.listen(10)
+        self.conn,self. cliente = self.socket.accept()
 
-        self.tlist=[]
-        x=thread_with_trace(target=self.client_t)
+    def update(self):
 
-        x.start()
-        self.tlist.append(x)
-        
+        print(self.objects)
+               
+        toSend={}
+        for chave in self.objects:
+            i=self.objects[chave]
+            if i.netstate==IS_LOCAL:
+                toSend[i.id]=i.post()
+            
+            
+        #try:
+            #print("enviando",toSend)
+            self.conn.sendall(bytes(json.dumps(toSend),"utf-8"))
+            recebido=self.conn.recv(2048)
+            #print("recebido",recebido)
+            recived=json.loads(recebido)
+            for chave in recived:
+                i=self.objects[int(chave)]
+                i.get(recived[chave])
+        #except:
+        #    print("pacote perdido")
+        #    return -1
 
-    def stop(self):
-        for i in self.tlist:
-            i.kill()
+        self.comands={}
 
 
-    def client_t(self):
-        while True:
-            recived=json.loads(self.socket.recv(2048))
-            for i in range(len(self.isOnline)):
-                self.isOnline[i].get(recived[i])
 
-            toSend=[]
-            for i in self.isLocal:
-                toSend.append(i.post())
-            self.socket.sendall(bytes(json.dumps(toSend),"utf-8")) 
+class NetManagerClient(NetBase):
 
+    def start(self):
+        self.socket=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+        self.socket.connect((self.address,PORTA))
+
+
+    def update(self):
+        #try:
+            print(self.objects)
+
+            recived=self.socket.recv(2048)
+            #print("recebido",recived)
+            recived=json.loads(recived)
+            
+            for chave in recived:
+                
+                i=self.objects[int(chave)]
+                i.get(recived[chave])
+
+            toSend=self.comands
+            for chave in self.objects:
+                i=self.objects[chave]
+                if i.netstate==IS_LOCAL:
+                    toSend[i.id]=i.post()
+            #print("enviando",toSend)
+            self.socket.sendall(bytes(json.dumps(toSend),"utf-8"))
+        #except:
+        #    print("pacote perdido")
+        #    return -1
+        self.comands={}
 
             

@@ -513,6 +513,10 @@ class MainGame:
                     i.OflineUpdate()
                 else:
                     i.Update()
+            isok=self.netManager.update()
+            if isok==-1:
+                is_running=False
+
 
 
                                         

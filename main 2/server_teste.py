@@ -1,6 +1,6 @@
-import main
-import multiprocessing
+import game
 
 if __name__ == '__main__':
-	j=main.MainGame(isServer=True)
+	j=game.GameManager(isServer=True)
+	j.start()  
 	           

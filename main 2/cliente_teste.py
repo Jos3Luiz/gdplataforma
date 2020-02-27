@@ -1,6 +1,6 @@
-import main
+import game
 
 
 
-j=main.MainGame(isServer=False)
-           
+j=game.GameManager(isServer=False)
+j.start()         
